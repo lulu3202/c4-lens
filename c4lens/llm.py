@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import os
+from typing import Any
+
+from dotenv import load_dotenv
 
 from .models import Assumption, C4Model, Element, ElementType, Provenance, Relationship
 
+load_dotenv()
+
+DEFAULT_MODEL = "claude-sonnet-4-6"
+
+
+class ProviderNotConfiguredError(RuntimeError):
+    """Raised when a live generation is requested without the required secret."""
+
 
 def sample_model(problem: str) -> C4Model:
-    """A deterministic reviewable draft used when no live provider is configured."""
+    """A deterministic fixture exclusively for tests; never an interactive fallback."""
     summary = problem.strip() or "A system requiring architecture review."
     return C4Model(
         system_name="C4 Lens",
@@ -70,36 +81,86 @@ def sample_model(problem: str) -> C4Model:
     )
 
 
-def generate_model(problem: str) -> C4Model:
-    """Single-provider adapter. Falls back to an explicit deterministic draft without a key."""
-    if not os.getenv("OPENAI_API_KEY"):
-        return sample_model(problem)
-    from openai import OpenAI
+def generate_model(problem: str, client: Any | None = None) -> C4Model:
+    """Make exactly one Anthropic structured-output request and validate its result."""
+    if client is None and not os.getenv("ANTHROPIC_API_KEY"):
+        raise ProviderNotConfiguredError(
+            "Live Anthropic generation is unavailable. Add ANTHROPIC_API_KEY to local .env or Streamlit secrets."
+        )
+    if client is None:
+        from anthropic import Anthropic
 
-    client = OpenAI()
-    response = client.beta.chat.completions.parse(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        messages=[
-            {
-                "role": "system",
-                "content": "Propose a small C4Model. Never present inferred information as stated: mark it proposed_assumption. Return only the requested schema.",
-            },
-            {"role": "user", "content": problem},
-        ],
-        response_format=C4Model,
+        client = Anthropic()
+    response = client.messages.parse(
+        model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),
+        max_tokens=4096,
+        system="You propose a reviewable C4 architecture model. Only explicit user claims may be stated. Mark inferred entities, relationships, and assumptions as proposed_assumption. Include one non-external software system named system_name; containers belong to it. Do not create components, DOT, or prose outside the schema.",
+        messages=[{"role": "user", "content": problem}],
+        output_format=C4Model,
     )
-    parsed = response.choices[0].message.parsed
+    parsed = response.parsed_output
     if parsed is None:
-        raise RuntimeError("The LLM returned no structured architecture model.")
-    return parsed
+        raise RuntimeError("Anthropic returned no structured architecture model.")
+    return C4Model.model_validate(parsed)
 
 
-def resolve_proposals(model: C4Model) -> C4Model:
-    """Record a human review decision by turning draft proposals into derived structure."""
+def apply_proposal_review(
+    model: C4Model, accepted: set[str], rejected: set[str]
+) -> C4Model:
+    """Apply explicit per-item human decisions; unreviewed proposals remain unapprovable."""
     data = model.model_dump()
-    for group in ("people", "software_systems", "containers", "relationships"):
+    proposal_keys = {
+        *[
+            item.id
+            for item in model.all_elements()
+            if item.provenance == Provenance.PROPOSED
+        ],
+        *[
+            f"relationship:{index}"
+            for index, item in enumerate(model.relationships)
+            if item.provenance == Provenance.PROPOSED
+        ],
+        *[
+            f"assumption:{index}"
+            for index, item in enumerate(model.assumptions)
+            if item.provenance == Provenance.PROPOSED
+        ],
+    }
+    if proposal_keys != accepted | rejected or accepted & rejected:
+        raise ValueError(
+            "Every proposed item needs one explicit accept or reject decision."
+        )
+    rejected_ids = {
+        key for key in rejected if not key.startswith(("relationship:", "assumption:"))
+    }
+    for group in ("people", "software_systems", "containers"):
+        data[group] = [item for item in data[group] if item["id"] not in rejected_ids]
         for item in data[group]:
-            if item["provenance"] == Provenance.PROPOSED.value:
+            if (
+                item["id"] in accepted
+                and item["provenance"] == Provenance.PROPOSED.value
+            ):
                 item["provenance"] = Provenance.DERIVED.value
-    data["assumptions"] = []
+    data["relationships"] = [
+        {
+            **item,
+            "provenance": Provenance.DERIVED.value
+            if f"relationship:{index}" in accepted
+            else item["provenance"],
+        }
+        for index, item in enumerate(data["relationships"])
+        if f"relationship:{index}" not in rejected
+        and item["source_id"] not in rejected_ids
+        and item["target_id"] not in rejected_ids
+    ]
+    data["assumptions"] = [
+        {
+            **item,
+            "provenance": Provenance.DERIVED.value
+            if f"assumption:{index}" in accepted
+            else item["provenance"],
+        }
+        for index, item in enumerate(data["assumptions"])
+        if f"assumption:{index}" not in rejected
+    ]
     return C4Model.model_validate(data)

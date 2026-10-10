@@ -1,5 +1,12 @@
+import pytest
+
 from c4lens.export import export_json, export_png, export_svg
-from c4lens.llm import resolve_proposals, sample_model
+from c4lens.llm import (
+    ProviderNotConfiguredError,
+    apply_proposal_review,
+    generate_model,
+    sample_model,
+)
 from c4lens.models import C4Model
 from c4lens.render import diagram_dot
 from c4lens.validate import validate_model, validate_view
@@ -14,10 +21,42 @@ def test_deterministic_draft_is_valid_but_not_approvable():
     )
 
 
-def test_review_resolves_assumptions_before_approval():
-    resolved = resolve_proposals(sample_model("x"))
-    assert not resolved.assumptions
-    assert validate_model(resolved, approved=True).valid
+def test_review_requires_each_proposal_and_honours_rejection():
+    model = sample_model("x")
+    with pytest.raises(ValueError, match="Every proposed"):
+        apply_proposal_review(model, set(), set())
+    reviewed = apply_proposal_review(
+        model, {"llm_provider", "relationship:1", "assumption:0"}, set()
+    )
+    assert validate_model(reviewed, approved=True).valid
+    rejected = apply_proposal_review(
+        model, set(), {"llm_provider", "relationship:1", "assumption:0"}
+    )
+    assert "llm_provider" not in {item.id for item in rejected.all_elements()}
+    assert validate_model(rejected, approved=True).valid
+
+
+def test_anthropic_adapter_uses_structured_output(monkeypatch):
+    class Response:
+        parsed_output = sample_model("live")
+
+    class Messages:
+        def parse(self, **kwargs):
+            assert kwargs["output_format"] is C4Model
+            assert kwargs["messages"][0]["content"] == "problem"
+            return Response()
+
+    class Client:
+        messages = Messages()
+
+    monkeypatch.setenv("ANTHROPIC_MODEL", "test-model")
+    assert generate_model("problem", client=Client()).problem_summary == "live"
+
+
+def test_live_generation_requires_anthropic_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(ProviderNotConfiguredError):
+        generate_model("problem")
 
 
 def test_invalid_relationship_and_duplicate_ids_are_rejected():
@@ -46,7 +85,9 @@ def test_container_must_belong_to_described_system():
 
 
 def test_context_excludes_containers_and_svg_and_exports_work():
-    model = resolve_proposals(sample_model("x"))
+    model = apply_proposal_review(
+        sample_model("x"), {"llm_provider", "relationship:1", "assumption:0"}, set()
+    )
     dot = diagram_dot(model, "context", approved=True)
     assert "streamlit_app" not in dot
     assert b"svg" in export_svg(model, "context")
@@ -57,6 +98,8 @@ def test_context_excludes_containers_and_svg_and_exports_work():
 def test_end_to_end_draft_to_approved_export_flow():
     draft = sample_model("A held-out incident review service with external alerts")
     assert draft.has_proposed_content()
-    approved = resolve_proposals(draft)
+    approved = apply_proposal_review(
+        draft, {"llm_provider", "relationship:1", "assumption:0"}, set()
+    )
     assert validate_model(approved, approved=True).valid
     assert export_svg(approved, "container")

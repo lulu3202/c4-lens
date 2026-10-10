@@ -70,4 +70,7 @@ class C4Model(BaseModel):
     def has_proposed_content(self) -> bool:
         return any(
             item.provenance == Provenance.PROPOSED for item in self.all_elements()
-        ) or bool(self.assumptions)
+        ) or any(
+            assumption.provenance == Provenance.PROPOSED
+            for assumption in self.assumptions
+        )

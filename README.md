@@ -21,10 +21,10 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-`OPENAI_API_KEY` enables the single OpenAI adapter; without it, the app uses a visibly labelled deterministic draft. `OPENAI_MODEL` is optional. Do not commit either value.
+`ANTHROPIC_API_KEY` enables the single Anthropic adapter; `ANTHROPIC_MODEL` is optional. Without a key, interactive live generation is unavailable (the deterministic fixture is test-only). Do not commit either value.
 
 ## Quality and deployment
 
-Run `ruff check .` and `pytest -q`. GitHub Actions runs both plus an import smoke check. Streamlit Community Cloud can deploy this repository directly; set `OPENAI_API_KEY` in its secret configuration. The live LLM smoke test is human action required until a key is configured.
+Run `ruff check .` and `pytest -q`. GitHub Actions runs both plus an import smoke check. Streamlit Community Cloud can deploy this repository directly; set `ANTHROPIC_API_KEY` in its secret configuration and optionally `ANTHROPIC_MODEL`. The live Anthropic smoke test is human action required until a key is configured.
 
 The lifecycle map is [`docs/01-intent.md`](docs/01-intent.md) through [`docs/08-learnings.md`](docs/08-learnings.md). C4 Lens is independent software and is not affiliated with Structurizr or the C4 Model authors. No license has been selected.

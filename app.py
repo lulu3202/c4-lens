@@ -4,7 +4,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from c4lens.export import export_json, export_png, export_svg
-from c4lens.llm import generate_model, resolve_proposals
+from c4lens.llm import apply_proposal_review, generate_model
 from c4lens.models import C4Model, Provenance
 from c4lens.render import render_svg
 from c4lens.validate import validate_model
@@ -35,7 +35,7 @@ if st.button("Generate architecture", type="primary", disabled=not problem.strip
 model: C4Model | None = st.session_state.model
 if model is None:
     st.info(
-        "Enter a problem statement to create a reviewable draft. Without `OPENAI_API_KEY`, C4 Lens uses a clearly labelled deterministic draft."
+        "Enter a problem statement to create a reviewable draft. Live Anthropic generation requires `ANTHROPIC_API_KEY`; the deterministic fixture is used only by automated tests."
     )
     st.stop()
 
@@ -84,15 +84,54 @@ with left:
     validation = validate_model(model)
     if not validation.valid:
         st.error(" ".join(validation.errors))
-    if not st.session_state.approved and st.button(
-        "Resolve proposed assumptions and approve"
-    ):
-        st.session_state.model = resolve_proposals(model)
-        approved_validation = validate_model(st.session_state.model, approved=True)
-        if approved_validation.valid:
-            st.session_state.approved = True
-            st.rerun()
-        st.error(" ".join(approved_validation.errors))
+    if not st.session_state.approved:
+        st.markdown("**Decide each proposed item before approval**")
+        proposals = [
+            (item.id, f"{item.name}: {item.description}")
+            for item in model.all_elements()
+            if item.provenance == Provenance.PROPOSED
+        ]
+        proposals += [
+            (
+                f"relationship:{index}",
+                f"Relationship: {item.source_id} → {item.target_id} — {item.description}",
+            )
+            for index, item in enumerate(model.relationships)
+            if item.provenance == Provenance.PROPOSED
+        ]
+        proposals += [
+            (f"assumption:{index}", f"Assumption: {item.text}")
+            for index, item in enumerate(model.assumptions)
+            if item.provenance == Provenance.PROPOSED
+        ]
+        decisions = {}
+        for key, label in proposals:
+            decisions[key] = st.radio(
+                label,
+                ["Choose…", "Accept", "Reject"],
+                key=f"review-{key}",
+                horizontal=True,
+            )
+        if st.button("Approve reviewed architecture"):
+            accepted = {
+                key for key, decision in decisions.items() if decision == "Accept"
+            }
+            rejected = {
+                key for key, decision in decisions.items() if decision == "Reject"
+            }
+            try:
+                st.session_state.model = apply_proposal_review(
+                    model, accepted, rejected
+                )
+                approved_validation = validate_model(
+                    st.session_state.model, approved=True
+                )
+                if not approved_validation.valid:
+                    raise ValueError(" ".join(approved_validation.errors))
+                st.session_state.approved = True
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
 
 with right:
     st.subheader("Visualize")
