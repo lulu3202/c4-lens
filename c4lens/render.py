@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import base64
 import html
 import re
 from html import escape
-from pathlib import Path
 from textwrap import wrap
 
 from graphviz import Digraph, Source
@@ -19,7 +17,6 @@ COLORS = {
     "external": "#64748b",
     "proposed": "#c97818",
 }
-ICON_DIRECTORY = Path(__file__).parent / "assets" / "icons"
 
 
 def _lines(text: str, limit: int = 28, maximum: int = 2) -> str:
@@ -29,25 +26,23 @@ def _lines(text: str, limit: int = 28, maximum: int = 2) -> str:
     return "<BR/>".join(escape(line) for line in lines)
 
 
-def _icon_path(item: Element) -> Path:
+def _icon_kind(item: Element) -> str:
     if item.external:
-        name = "external"
-    elif item.type.value == "software_system":
-        name = "system"
+        return "external-system"
+    return {"person": "person", "software_system": "software-system", "container": "container"}[item.type.value]
+
+
+def _pictogram(kind: str, x: float, y: float) -> str:
+    common = 'fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'
+    if kind == "person":
+        geometry = f'<circle cx="{x + 8}" cy="{y + 5}" r="3" fill="#ffffff"/><path d="M{x + 2} {y + 15}c1-4 3-6 6-6s5 2 6 6" {common}/>'
+    elif kind == "software-system":
+        geometry = f'<rect x="{x + 1}" y="{y + 2}" width="14" height="10" rx="1.5" {common}/><path d="M{x + 5} {y + 16}h6M{x + 8} {y + 12}v4" {common}/>'
+    elif kind == "external-system":
+        geometry = f'<rect x="{x + 1}" y="{y + 4}" width="11" height="11" rx="1.5" {common}/><path d="M{x + 9} {y + 2}h6v6M{x + 15} {y + 2} {x + 8} {y + 9}" {common}/>'
     else:
-        name = item.type.value
-    return ICON_DIRECTORY / f"{name}.svg"
-
-
-def _icon_data_uri(path: Path) -> str:
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/svg+xml;base64,{encoded}"
-
-
-def _icon_symbol(item: Element) -> str:
-    if item.external:
-        return "↗"
-    return {"person": "●", "software_system": "▣", "container": "▤"}[item.type.value]
+        geometry = f'<rect x="{x + 1}" y="{y + 2}" width="14" height="4" rx="1" {common}/><rect x="{x + 1}" y="{y + 8}" width="14" height="4" rx="1" {common}/><rect x="{x + 1}" y="{y + 14}" width="14" height="2" rx="1" fill="#ffffff"/>'
+    return f'<g class="c4-pictogram {kind}">{geometry}</g>'
 
 
 def _embed_icons(svg: str, model: C4Model) -> str:
@@ -62,13 +57,9 @@ def _embed_icons(svg: str, model: C4Model) -> str:
         item = elements.get(html.unescape(match.group("id")).replace("-", "-"))
         if item is None:
             return match.group(0)
-        x = float(match.group("x")) - 22
-        y = float(match.group("y")) - 16
-        image = (
-            f'<image class="c4-icon" x="{x:.1f}" y="{y:.1f}" width="16" height="16" '
-            f'href="{_icon_data_uri(_icon_path(item))}"/>'
-        )
-        return f'{match.group("head")}{image}{match.group("text")}'
+        x = float(match.group("x")) - 21
+        y = float(match.group("y")) - 15
+        return f'{match.group("head")}{_pictogram(_icon_kind(item), x, y)}{match.group("text")}'
 
     return pattern.sub(add_icon, svg)
 
@@ -79,7 +70,7 @@ def _label(item: Element) -> str:
     technology = f"<BR/><FONT POINT-SIZE=\"10\">{escape(item.technology)}</FONT>" if item.technology else ""
     return (
         "<<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"2\">"
-        f"<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"26\" HEIGHT=\"26\"><FONT POINT-SIZE=\"19\">{_icon_symbol(item)}</FONT></TD>"
+        "<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"22\" HEIGHT=\"22\"></TD>"
         f"<TD ALIGN=\"LEFT\"><B>{escape(item.name)}</B>{external}{proposed}<BR/>"
         f"<FONT POINT-SIZE=\"10\">{_lines(item.description)}</FONT>{technology}</TD></TR></TABLE>>"
     )
@@ -184,7 +175,7 @@ def render_svg(model: C4Model, view: str, approved: bool = False) -> bytes:
             color = _color(item, approved)
             blocks.append(
                 f'<rect x="80" y="{y}" width="360" height="80" rx="10" fill="{color}"/>'
-                f'<image href="{_icon_data_uri(_icon_path(item))}" x="96" y="{y + 18}" width="44" height="44"/>'
+                f'{_pictogram(_icon_kind(item), 96, y + 27)}'
                 f'<text x="156" y="{y + 30}" fill="white" font-family="Arial" font-size="18">{escape(item.name)}</text>'
                 f'<text x="156" y="{y + 57}" fill="white" font-family="Arial" font-size="13">{escape(item.description)}</text>'
             )

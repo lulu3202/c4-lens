@@ -149,20 +149,23 @@ def test_context_excludes_containers_and_svg_and_exports_work():
     assert "streamlit_app" not in dot
     svg = export_svg(model, "context")
     assert b"svg" in svg
-    assert b"data:image/svg+xml;base64" in svg
     assert export_png(model, "container").startswith(b"\x89PNG")
     assert b'"system_name"' in export_json(model)
 
 
 def test_final_svg_embeds_self_contained_pictograms():
     model = sample_model("x")
-    graphviz_svg = (
-        '<g id="node1" class="node"><title>user</title><path d="M0,0"/>'
-        '<text x="40" y="-20">Architecture reviewer</text></g>'
+    graphviz_svg = "".join(
+        f'<g id="node{index}" class="node"><title>{item_id}</title><path d="M0,0"/>'
+        '<text x="40" y="-20">Node</text></g>'
+        for index, item_id in enumerate(("user", "c4_lens", "llm_provider", "streamlit_app"), 1)
     )
     final_svg = _embed_icons(graphviz_svg, model)
-    assert 'class="c4-icon"' in final_svg
-    assert "data:image/svg+xml;base64" in final_svg
+    for kind in ("person", "software-system", "external-system", "container"):
+        assert f'class="c4-pictogram {kind}"' in final_svg
+    assert "<circle" in final_svg
+    assert "<rect" in final_svg
+    assert "<path" in final_svg
 
 
 def test_end_to_end_draft_to_approved_export_flow():
