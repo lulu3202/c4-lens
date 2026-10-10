@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 
-from graphviz import Source
 from PIL import Image, ImageDraw
 
 from .models import C4Model
@@ -19,9 +18,11 @@ def export_svg(model: C4Model, view: str) -> bytes:
 
 def export_png(model: C4Model, view: str) -> bytes:
     """Render the approved DOT with Graphviz, retaining a portable local fallback."""
-    dot = diagram_dot(model, view, approved=True)
+    diagram_dot(model, view, approved=True)
     try:
-        return Source(dot, format="png").pipe()
+        import cairosvg
+
+        return cairosvg.svg2png(bytestring=render_svg(model, view, approved=True))
     except Exception:  # noqa: BLE001 - local Graphviz executable may be unavailable
         image = Image.new("RGB", (1200, 220), "white")
         draw = ImageDraw.Draw(image)

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import html
+import re
 from html import escape
 from pathlib import Path
 from textwrap import wrap
@@ -46,6 +48,29 @@ def _icon_symbol(item: Element) -> str:
     if item.external:
         return "↗"
     return {"person": "●", "software_system": "▣", "container": "▤"}[item.type.value]
+
+
+def _embed_icons(svg: str, model: C4Model) -> str:
+    """Add self-contained local pictograms after Graphviz has laid out each node."""
+    elements = {item.id: item for item in model.all_elements()}
+    pattern = re.compile(
+        r'(?P<head><g id="node\d+" class="node">\s*<title>(?P<id>[^<]+)</title>\s*<path[^>]+/>\s*)'
+        r'(?P<text><text[^>]* x="(?P<x>-?[\d.]+)" y="(?P<y>-?[\d.]+)"[^>]*>)'
+    )
+
+    def add_icon(match: re.Match[str]) -> str:
+        item = elements.get(html.unescape(match.group("id")).replace("-", "-"))
+        if item is None:
+            return match.group(0)
+        x = float(match.group("x")) - 22
+        y = float(match.group("y")) - 16
+        image = (
+            f'<image class="c4-icon" x="{x:.1f}" y="{y:.1f}" width="16" height="16" '
+            f'href="{_icon_data_uri(_icon_path(item))}"/>'
+        )
+        return f'{match.group("head")}{image}{match.group("text")}'
+
+    return pattern.sub(add_icon, svg)
 
 
 def _label(item: Element) -> str:
@@ -140,10 +165,7 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
 def render_svg(model: C4Model, view: str, approved: bool = False) -> bytes:
     dot = diagram_dot(model, view, approved)
     try:
-        rendered = Source(dot, format="svg").pipe().decode()
-        for icon in ICON_DIRECTORY.glob("*.svg"):
-            rendered = rendered.replace(icon.as_posix(), _icon_data_uri(icon))
-        return rendered.encode()
+        return _embed_icons(Source(dot, format="svg").pipe().decode(), model).encode()
     except Exception:  # noqa: BLE001 - Graphviz executable is optional locally
         # Useful local fallback when the Graphviz executable is not installed.
         allowed = set(view_elements(model, view))
