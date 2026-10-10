@@ -19,8 +19,9 @@ def export_svg(model: C4Model, view: str) -> bytes:
 
 def export_png(model: C4Model, view: str) -> bytes:
     """Render the approved DOT with Graphviz, retaining a portable local fallback."""
+    dot = diagram_dot(model, view, approved=True)
     try:
-        return Source(diagram_dot(model, view, approved=True), format="png").pipe()
+        return Source(dot, format="png").pipe()
     except Exception:  # noqa: BLE001 - local Graphviz executable may be unavailable
         image = Image.new("RGB", (1200, 220), "white")
         draw = ImageDraw.Draw(image)

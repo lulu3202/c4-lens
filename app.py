@@ -136,12 +136,23 @@ with left:
 with right:
     st.subheader("Visualize")
     context, container = st.tabs(["System Context", "Container"])
-    for tab, view in ((context, "context"), (container, "container")):
-        with tab:
+    with context:
+        try:
+            components.html(
+                render_svg(model, "context", approved=st.session_state.approved).decode(),
+                height=520,
+                scrolling=True,
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+    with container:
+        if not model.containers:
+            st.info("No Container architecture has been proposed yet.")
+        else:
             try:
                 components.html(
                     render_svg(
-                        model, view, approved=st.session_state.approved
+                        model, "container", approved=st.session_state.approved
                     ).decode(),
                     height=520,
                     scrolling=True,
@@ -149,6 +160,9 @@ with right:
             except ValueError as exc:
                 st.error(str(exc))
 
+reviewed_container = any(
+    item.provenance != Provenance.PROPOSED for item in model.containers
+)
 if st.session_state.approved:
     st.subheader("Export canonical architecture")
     one, two, three = st.columns(3)
@@ -160,12 +174,15 @@ if st.session_state.approved:
             "image/svg+xml",
         )
     with two:
-        st.download_button(
-            "Download Container PNG",
-            export_png(model, "container"),
-            "c4-container.png",
-            "image/png",
-        )
+        if reviewed_container:
+            st.download_button(
+                "Download Container PNG",
+                export_png(model, "container"),
+                "c4-container.png",
+                "image/png",
+            )
+        else:
+            st.info("Container export is unavailable until a reviewed container exists.")
     with three:
         st.download_button(
             "Download model JSON",

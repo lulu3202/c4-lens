@@ -72,6 +72,8 @@ def validate_view(model: C4Model, view: str) -> ValidationResult:
         # Containers are deliberately excluded, not invalid in the canonical model.
         pass
     if view == "container":
+        if not model.containers:
+            errors.append("No Container architecture has been proposed yet.")
         primary = next(
             (
                 item

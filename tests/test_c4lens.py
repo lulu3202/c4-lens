@@ -51,6 +51,8 @@ def test_gateway_adapter_uses_structured_output(monkeypatch):
         def create(self, **kwargs):
             assert kwargs["response_format"]["type"] == "json_schema"
             assert kwargs["messages"][1]["content"] == "problem"
+            assert "greenfield" in kwargs["messages"][0]["content"]
+            assert "propose a minimal plausible container set" in kwargs["messages"][0]["content"]
             return Response()
 
     class Chat:
@@ -92,6 +94,20 @@ def test_container_must_belong_to_described_system():
     data["containers"][0]["parent_system_id"] = "llm_provider"
     result = validate_view(C4Model.model_validate(data), "container")
     assert not result.valid
+
+
+def test_container_view_requires_a_container_and_cannot_export_a_duplicate_context():
+    model = sample_model("x")
+    data = model.model_dump()
+    data["containers"] = []
+    without_containers = C4Model.model_validate(data)
+    result = validate_view(without_containers, "container")
+    assert not result.valid
+    assert result.errors == ["No Container architecture has been proposed yet."]
+    with pytest.raises(ValueError, match="No Container architecture"):
+        diagram_dot(without_containers, "container")
+    with pytest.raises(ValueError, match="No Container architecture"):
+        export_png(without_containers, "container")
 
 
 def test_context_excludes_containers_and_svg_and_exports_work():

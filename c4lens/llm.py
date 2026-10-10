@@ -101,7 +101,7 @@ def generate_model(problem: str, client: Any | None = None) -> C4Model:
         messages=[
             {
                 "role": "system",
-                "content": "You propose a reviewable C4 architecture model. Only explicit user claims may be stated. Mark inferred entities, relationships, and assumptions as proposed_assumption. Include one non-external software system named system_name; containers belong to it. Do not create components, DOT, or prose outside the JSON schema.",
+                "content": "You propose a reviewable C4 architecture model for a greenfield system. Only people and software systems explicitly named by the user may be stated. Mark logical consequences as derived only when they follow directly from the user's words. A greenfield problem usually does not name runtime containers: when no explicit container architecture is supplied, propose a minimal plausible container set for the named system. Mark every inferred container, its technology, inferred relationship, external integration, and architectural assumption as proposed_assumption. Include a concise proposed assumption explaining the container choices. Never present a proposed container as stated or derived. Include one non-external software system named system_name; every container belongs to it. Prefer a small useful architecture over a generic exhaustive one. Do not create components, DOT, or prose outside the JSON schema.",
             },
             {"role": "user", "content": problem},
         ],
