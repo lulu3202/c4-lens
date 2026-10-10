@@ -1,4 +1,5 @@
 import json
+from xml.etree import ElementTree as ET
 
 import pytest
 
@@ -155,17 +156,28 @@ def test_context_excludes_containers_and_svg_and_exports_work():
 
 def test_final_svg_embeds_self_contained_pictograms():
     model = sample_model("x")
-    graphviz_svg = "".join(
-        f'<g id="node{index}" class="node"><title>{item_id}</title><path d="M0,0"/>'
-        '<text x="40" y="-20">Node</text></g>'
+    graphviz_svg = '<svg xmlns="http://www.w3.org/2000/svg">' + "".join(
+        f'<g id="node{index}" class="node"><title>{item_id}</title><polygon points="0,0 1,1"/>'
+        '<text text-anchor="start" x="40" y="-20">Node</text></g>'
         for index, item_id in enumerate(("user", "c4_lens", "llm_provider", "streamlit_app"), 1)
-    )
+    ) + "</svg>"
     final_svg = _embed_icons(graphviz_svg, model)
-    for kind in ("person", "software-system", "external-system", "container"):
-        assert f'class="c4-pictogram {kind}"' in final_svg
-    assert "<circle" in final_svg
-    assert "<rect" in final_svg
-    assert "<path" in final_svg
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    root = ET.fromstring(final_svg)
+    expected = {
+        "user": ("person", {"circle", "path"}),
+        "c4_lens": ("software-system", {"rect", "path"}),
+        "llm_provider": ("external-system", {"rect", "path"}),
+        "streamlit_app": ("container", {"rect"}),
+    }
+    for node in root.findall(".//svg:g[@class='node']", namespace):
+        item_id = node.findtext("svg:title", namespaces=namespace)
+        kind, required_geometry = expected[item_id]
+        pictogram = node.find(f"svg:g[@class='c4-pictogram {kind}']", namespace)
+        assert pictogram is not None
+        geometry = {child.tag.rsplit("}", 1)[-1] for child in pictogram}
+        assert required_geometry <= geometry
+        assert all(child.attrib for child in pictogram)
 
 
 def test_end_to_end_draft_to_approved_export_flow():
