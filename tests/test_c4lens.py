@@ -36,25 +36,35 @@ def test_review_requires_each_proposal_and_honours_rejection():
     assert validate_model(rejected, approved=True).valid
 
 
-def test_anthropic_adapter_uses_structured_output(monkeypatch):
+def test_gateway_adapter_uses_structured_output(monkeypatch):
     class Response:
-        parsed_output = sample_model("live")
+        class Choice:
+            class Message:
+                content = sample_model("live").model_dump_json()
 
-    class Messages:
-        def parse(self, **kwargs):
-            assert kwargs["output_format"] is C4Model
-            assert kwargs["messages"][0]["content"] == "problem"
+            message = Message()
+
+        def __init__(self):
+            self.choices = [self.Choice()]
+
+    class Completions:
+        def create(self, **kwargs):
+            assert kwargs["response_format"]["type"] == "json_schema"
+            assert kwargs["messages"][1]["content"] == "problem"
             return Response()
 
-    class Client:
-        messages = Messages()
+    class Chat:
+        completions = Completions()
 
-    monkeypatch.setenv("ANTHROPIC_MODEL", "test-model")
+    class Client:
+        chat = Chat()
+
+    monkeypatch.setenv("AI_GATEWAY_MODEL", "test-model")
     assert generate_model("problem", client=Client()).problem_summary == "live"
 
 
-def test_live_generation_requires_anthropic_key(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+def test_live_generation_requires_gateway_key(monkeypatch):
+    monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     with pytest.raises(ProviderNotConfiguredError):
         generate_model("problem")
 

@@ -21,10 +21,10 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-`ANTHROPIC_API_KEY` enables the single Anthropic adapter; `ANTHROPIC_MODEL` is optional. Without a key, interactive live generation is unavailable (the deterministic fixture is test-only). Do not commit either value.
+`AI_GATEWAY_API_KEY` enables the single Vercel AI Gateway adapter; `AI_GATEWAY_MODEL` defaults to `openai/gpt-5.6-terra`. Without a key, interactive live generation is unavailable (the deterministic fixture is test-only). Do not commit either value.
 
 ## Quality and deployment
 
-Run `ruff check .` and `pytest -q`. GitHub Actions runs both plus an import smoke check. Streamlit Community Cloud can deploy this repository directly; set `ANTHROPIC_API_KEY` in its secret configuration and optionally `ANTHROPIC_MODEL`. The live Anthropic smoke test is human action required until a key is configured.
+Run `ruff check .` and `pytest -q`. GitHub Actions runs both plus an import smoke check. Streamlit Community Cloud can deploy this repository directly; set `AI_GATEWAY_API_KEY` in its secret configuration and optionally `AI_GATEWAY_MODEL`. The live gateway smoke test is human action required until a key is configured.
 
 The lifecycle map is [`docs/01-intent.md`](docs/01-intent.md) through [`docs/08-learnings.md`](docs/08-learnings.md). C4 Lens is independent software and is not affiliated with Structurizr or the C4 Model authors. No license has been selected.

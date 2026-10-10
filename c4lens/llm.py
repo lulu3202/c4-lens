@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
@@ -9,7 +10,7 @@ from .models import Assumption, C4Model, Element, ElementType, Provenance, Relat
 
 load_dotenv()
 
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "openai/gpt-5.6-terra"
 
 
 class ProviderNotConfiguredError(RuntimeError):
@@ -82,26 +83,43 @@ def sample_model(problem: str) -> C4Model:
 
 
 def generate_model(problem: str, client: Any | None = None) -> C4Model:
-    """Make exactly one Anthropic structured-output request and validate its result."""
-    if client is None and not os.getenv("ANTHROPIC_API_KEY"):
+    """Make one Vercel AI Gateway structured-output request and validate its result."""
+    if client is None and not os.getenv("AI_GATEWAY_API_KEY"):
         raise ProviderNotConfiguredError(
-            "Live Anthropic generation is unavailable. Add ANTHROPIC_API_KEY to local .env or Streamlit secrets."
+            "Live Vercel AI Gateway generation is unavailable. Add AI_GATEWAY_API_KEY to local .env or Streamlit secrets."
         )
     if client is None:
-        from anthropic import Anthropic
+        from openai import OpenAI
 
-        client = Anthropic()
-    response = client.messages.parse(
-        model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),
+        client = OpenAI(
+            api_key=os.getenv("AI_GATEWAY_API_KEY"),
+            base_url="https://ai-gateway.vercel.sh/v1",
+        )
+    response = client.chat.completions.create(
+        model=os.getenv("AI_GATEWAY_MODEL", DEFAULT_MODEL),
         max_tokens=4096,
-        system="You propose a reviewable C4 architecture model. Only explicit user claims may be stated. Mark inferred entities, relationships, and assumptions as proposed_assumption. Include one non-external software system named system_name; containers belong to it. Do not create components, DOT, or prose outside the schema.",
-        messages=[{"role": "user", "content": problem}],
-        output_format=C4Model,
+        messages=[
+            {
+                "role": "system",
+                "content": "You propose a reviewable C4 architecture model. Only explicit user claims may be stated. Mark inferred entities, relationships, and assumptions as proposed_assumption. Include one non-external software system named system_name; containers belong to it. Do not create components, DOT, or prose outside the JSON schema.",
+            },
+            {"role": "user", "content": problem},
+        ],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "c4_model",
+                "strict": True,
+                "schema": C4Model.model_json_schema(),
+            },
+        },
     )
-    parsed = response.parsed_output
-    if parsed is None:
-        raise RuntimeError("Anthropic returned no structured architecture model.")
-    return C4Model.model_validate(parsed)
+    content = response.choices[0].message.content
+    if not content:
+        raise RuntimeError(
+            "Vercel AI Gateway returned no structured architecture model."
+        )
+    return C4Model.model_validate(json.loads(content))
 
 
 def apply_proposal_review(

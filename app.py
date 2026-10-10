@@ -35,7 +35,7 @@ if st.button("Generate architecture", type="primary", disabled=not problem.strip
 model: C4Model | None = st.session_state.model
 if model is None:
     st.info(
-        "Enter a problem statement to create a reviewable draft. Live Anthropic generation requires `ANTHROPIC_API_KEY`; the deterministic fixture is used only by automated tests."
+        "Enter a problem statement to create a reviewable draft. Live Vercel AI Gateway generation requires `AI_GATEWAY_API_KEY`; the deterministic fixture is used only by automated tests."
     )
     st.stop()
 
