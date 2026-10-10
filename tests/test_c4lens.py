@@ -147,7 +147,9 @@ def test_context_excludes_containers_and_svg_and_exports_work():
     )
     dot = diagram_dot(model, "context", approved=True)
     assert "streamlit_app" not in dot
-    assert b"svg" in export_svg(model, "context")
+    svg = export_svg(model, "context")
+    assert b"svg" in svg
+    assert b"data:image/svg+xml;base64" in svg
     assert export_png(model, "container").startswith(b"\x89PNG")
     assert b'"system_name"' in export_json(model)
 

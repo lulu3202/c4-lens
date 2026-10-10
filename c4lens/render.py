@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 from html import escape
+from pathlib import Path
 from textwrap import wrap
 
 from graphviz import Digraph, Source
@@ -15,6 +17,7 @@ COLORS = {
     "external": "#64748b",
     "proposed": "#c97818",
 }
+ICON_DIRECTORY = Path(__file__).parent / "assets" / "icons"
 
 
 def _lines(text: str, limit: int = 28, maximum: int = 2) -> str:
@@ -24,11 +27,32 @@ def _lines(text: str, limit: int = 28, maximum: int = 2) -> str:
     return "<BR/>".join(escape(line) for line in lines)
 
 
+def _icon_path(item: Element) -> Path:
+    if item.external:
+        name = "external"
+    elif item.type.value == "software_system":
+        name = "system"
+    else:
+        name = item.type.value
+    return ICON_DIRECTORY / f"{name}.svg"
+
+
+def _icon_data_uri(path: Path) -> str:
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
+
+
 def _label(item: Element) -> str:
     proposed = "<BR/><FONT POINT-SIZE=\"9\">PROPOSED</FONT>" if item.provenance.value == "proposed_assumption" else ""
     external = "<BR/><FONT POINT-SIZE=\"9\">EXTERNAL</FONT>" if item.external else ""
     technology = f"<BR/><FONT POINT-SIZE=\"10\">{escape(item.technology)}</FONT>" if item.technology else ""
-    return f"<<B>{escape(item.name)}</B>{external}{proposed}<BR/><FONT POINT-SIZE=\"10\">{_lines(item.description)}</FONT>{technology}>"
+    icon = _icon_path(item).as_posix()
+    return (
+        "<<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"2\">"
+        f"<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"36\" HEIGHT=\"36\"><IMG SRC=\"{icon}\" SCALE=\"TRUE\"/></TD>"
+        f"<TD ALIGN=\"LEFT\"><B>{escape(item.name)}</B>{external}{proposed}<BR/>"
+        f"<FONT POINT-SIZE=\"10\">{_lines(item.description)}</FONT>{technology}</TD></TR></TABLE>>"
+    )
 
 
 def _color(item: Element, approved: bool) -> str:
@@ -111,7 +135,10 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
 def render_svg(model: C4Model, view: str, approved: bool = False) -> bytes:
     dot = diagram_dot(model, view, approved)
     try:
-        return Source(dot, format="svg").pipe()
+        rendered = Source(dot, format="svg").pipe().decode()
+        for icon in ICON_DIRECTORY.glob("*.svg"):
+            rendered = rendered.replace(icon.as_posix(), _icon_data_uri(icon))
+        return rendered.encode()
     except Exception:  # noqa: BLE001 - Graphviz executable is optional locally
         # Useful local fallback when the Graphviz executable is not installed.
         allowed = set(view_elements(model, view))
@@ -129,7 +156,10 @@ def render_svg(model: C4Model, view: str, approved: bool = False) -> bytes:
             y = 40 + index * 115
             color = _color(item, approved)
             blocks.append(
-                f'<rect x="80" y="{y}" width="360" height="80" rx="10" fill="{color}"/><text x="100" y="{y + 30}" fill="white" font-family="Arial" font-size="18">{escape(item.name)}</text><text x="100" y="{y + 57}" fill="white" font-family="Arial" font-size="13">{escape(item.description)}</text>'
+                f'<rect x="80" y="{y}" width="360" height="80" rx="10" fill="{color}"/>'
+                f'<image href="{_icon_data_uri(_icon_path(item))}" x="96" y="{y + 18}" width="44" height="44"/>'
+                f'<text x="156" y="{y + 30}" fill="white" font-family="Arial" font-size="18">{escape(item.name)}</text>'
+                f'<text x="156" y="{y + 57}" fill="white" font-family="Arial" font-size="13">{escape(item.description)}</text>'
             )
         title = f"{escape(model.system_name)} — {'System Context' if view == 'context' else 'Container'}"
         return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"><rect width="100%" height="100%" fill="white"/><text x="40" y="28" font-family="Arial" font-size="20" font-weight="bold">{title}</text>{"".join(blocks)}</svg>'.encode()
