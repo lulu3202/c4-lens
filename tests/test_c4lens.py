@@ -53,6 +53,7 @@ def test_gateway_adapter_uses_structured_output(monkeypatch):
             assert kwargs["messages"][1]["content"] == "problem"
             assert "greenfield" in kwargs["messages"][0]["content"]
             assert "propose a minimal plausible container set" in kwargs["messages"][0]["content"]
+            assert kwargs["response_format"]["json_schema"]["schema"]["properties"]["containers"]["minItems"] == 1
             return Response()
 
     class Chat:
