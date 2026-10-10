@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from c4lens.export import export_json, export_png, export_svg
@@ -70,6 +72,34 @@ def test_live_generation_requires_gateway_key(monkeypatch):
     monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
     with pytest.raises(ProviderNotConfiguredError):
         generate_model("problem")
+
+
+def test_gateway_retries_zero_container_greenfield_draft(monkeypatch):
+    empty = sample_model("empty").model_dump()
+    empty["containers"] = []
+    proposed = sample_model("corrected").model_dump()
+    proposed["containers"][0]["provenance"] = "proposed_assumption"
+
+    class Response:
+        def __init__(self, content):
+            self.choices = [type("Choice", (), {"message": type("Message", (), {"content": content})()})()]
+
+    class Completions:
+        def __init__(self):
+            self.responses = [Response(json.dumps(empty)), Response(json.dumps(proposed))]
+            self.calls = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            return self.responses.pop(0)
+
+    completions = Completions()
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": completions})()})()
+    monkeypatch.setenv("AI_GATEWAY_MODEL", "test-model")
+    model = generate_model("problem", client=client)
+    assert model.containers[0].provenance.value == "proposed_assumption"
+    assert len(completions.calls) == 2
+    assert "previous draft had zero containers" in completions.calls[1]["messages"][0]["content"]
 
 
 def test_invalid_relationship_and_duplicate_ids_are_rejected():

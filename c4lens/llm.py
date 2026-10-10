@@ -102,17 +102,17 @@ def generate_model(problem: str, client: Any | None = None) -> C4Model:
             api_key=os.getenv("AI_GATEWAY_API_KEY"),
             base_url="https://ai-gateway.vercel.sh/v1",
         )
-    response = client.chat.completions.create(
-        model=os.getenv("AI_GATEWAY_MODEL", DEFAULT_MODEL),
-        max_tokens=4096,
-        messages=[
+    request = {
+        "model": os.getenv("AI_GATEWAY_MODEL", DEFAULT_MODEL),
+        "max_tokens": 4096,
+        "messages": [
             {
                 "role": "system",
                 "content": "You propose a reviewable C4 architecture model for a greenfield system. Only people and software systems explicitly named by the user may be stated. Mark logical consequences as derived only when they follow directly from the user's words. You MUST return one or more runtime containers. A greenfield problem usually does not name them, so propose a minimal plausible container set for the named system. Mark every inferred container, its technology, inferred relationship, external integration, and architectural assumption as proposed_assumption. Include a concise proposed assumption explaining the container choices. Never present a proposed container as stated or derived. Include one non-external software system named system_name; every container belongs to it. Prefer a small useful architecture over a generic exhaustive one. Do not create components, DOT, or prose outside the JSON schema.",
             },
             {"role": "user", "content": problem},
         ],
-        response_format={
+        "response_format": {
             "type": "json_schema",
             "json_schema": {
                 "name": "c4_model",
@@ -120,13 +120,29 @@ def generate_model(problem: str, client: Any | None = None) -> C4Model:
                 "schema": _greenfield_schema(),
             },
         },
-    )
+    }
+    response = client.chat.completions.create(**request)
     content = response.choices[0].message.content
     if not content:
         raise RuntimeError(
             "Vercel AI Gateway returned no structured architecture model."
         )
-    return C4Model.model_validate(json.loads(content))
+    model = C4Model.model_validate(json.loads(content))
+    if model.containers:
+        return model
+    request["messages"][0]["content"] += " Your previous draft had zero containers and is invalid. Return a replacement model with 3 to 5 proposed containers, every container marked proposed_assumption, plus proposed relationships and assumptions that explain the choices."
+    response = client.chat.completions.create(**request)
+    content = response.choices[0].message.content
+    if not content:
+        raise RuntimeError(
+            "Vercel AI Gateway returned no corrected architecture model."
+        )
+    model = C4Model.model_validate(json.loads(content))
+    if not model.containers:
+        raise RuntimeError(
+            "Vercel AI Gateway did not propose a Container architecture. Try a more specific problem statement."
+        )
+    return model
 
 
 def apply_proposal_review(
