@@ -42,14 +42,19 @@ def _icon_data_uri(path: Path) -> str:
     return f"data:image/svg+xml;base64,{encoded}"
 
 
+def _icon_symbol(item: Element) -> str:
+    if item.external:
+        return "↗"
+    return {"person": "●", "software_system": "▣", "container": "▤"}[item.type.value]
+
+
 def _label(item: Element) -> str:
     proposed = "<BR/><FONT POINT-SIZE=\"9\">PROPOSED</FONT>" if item.provenance.value == "proposed_assumption" else ""
     external = "<BR/><FONT POINT-SIZE=\"9\">EXTERNAL</FONT>" if item.external else ""
     technology = f"<BR/><FONT POINT-SIZE=\"10\">{escape(item.technology)}</FONT>" if item.technology else ""
-    icon = _icon_path(item).as_posix()
     return (
         "<<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"2\">"
-        f"<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"36\" HEIGHT=\"36\"><IMG SRC=\"{icon}\" SCALE=\"TRUE\"/></TD>"
+        f"<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"26\" HEIGHT=\"26\"><FONT POINT-SIZE=\"19\">{_icon_symbol(item)}</FONT></TD>"
         f"<TD ALIGN=\"LEFT\"><B>{escape(item.name)}</B>{external}{proposed}<BR/>"
         f"<FONT POINT-SIZE=\"10\">{_lines(item.description)}</FONT>{technology}</TD></TR></TABLE>>"
     )
