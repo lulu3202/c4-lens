@@ -11,7 +11,7 @@ from c4lens.llm import (
     sample_model,
 )
 from c4lens.models import C4Model
-from c4lens.render import _embed_icons, diagram_dot
+from c4lens.render import _embed_icons, diagram_dot, render_svg
 from c4lens.validate import validate_model, validate_view
 
 
@@ -196,6 +196,15 @@ def test_final_svg_embeds_self_contained_pictograms():
             if child.tag == "{http://www.w3.org/2000/svg}text"
         )
         assert max(background_indices) < pictogram_index < first_text_index
+
+
+def test_real_render_pipeline_embeds_pictograms():
+    model = sample_model("x")
+    context_svg = render_svg(model, "context", approved=False).decode()
+    container_svg = render_svg(model, "container", approved=False).decode()
+    assert 'class="c4-pictogram person"' in context_svg
+    assert 'class="c4-pictogram software-system"' in context_svg
+    assert 'class="c4-pictogram container"' in container_svg
 
 
 def test_end_to_end_draft_to_approved_export_flow():

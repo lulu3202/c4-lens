@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import streamlit as st
-import streamlit.components.v1 as components
 
-from c4lens.export import export_json, export_png, export_svg
+from c4lens.export import export_json, export_png
 from c4lens.llm import apply_proposal_review, generate_model
 from c4lens.models import C4Model, Provenance
 from c4lens.render import render_svg
@@ -14,6 +13,7 @@ st.title("C4 Lens")
 st.caption(
     "Turn a software problem into reviewable C4 diagrams — with assumptions kept visible."
 )
+st.caption("Renderer build: ICON-PROOF-1")
 
 if "model" not in st.session_state:
     st.session_state.model = None
@@ -38,6 +38,15 @@ if model is None:
         "Enter a problem statement to create a reviewable draft. Live Vercel AI Gateway generation requires `AI_GATEWAY_API_KEY`; the deterministic fixture is used only by automated tests."
     )
     st.stop()
+
+context_svg = render_svg(
+    model, "context", approved=st.session_state.approved
+).decode()
+container_svg = (
+    render_svg(model, "container", approved=st.session_state.approved).decode()
+    if model.containers
+    else None
+)
 
 st.divider()
 if not st.session_state.approved:
@@ -137,28 +146,13 @@ with right:
     st.subheader("Visualize")
     context, container = st.tabs(["System Context", "Container"])
     with context:
-        try:
-            components.html(
-                render_svg(model, "context", approved=st.session_state.approved).decode(),
-                height=520,
-                scrolling=True,
-            )
-        except ValueError as exc:
-            st.error(str(exc))
+        st.caption(f"Pictograms in rendered SVG: {context_svg.count('c4-pictogram')}")
+        st.html(context_svg)
     with container:
-        if not model.containers:
+        if container_svg is None:
             st.info("No Container architecture has been proposed yet.")
         else:
-            try:
-                components.html(
-                    render_svg(
-                        model, "container", approved=st.session_state.approved
-                    ).decode(),
-                    height=520,
-                    scrolling=True,
-                )
-            except ValueError as exc:
-                st.error(str(exc))
+            st.html(container_svg)
 
 reviewed_container = any(
     item.provenance != Provenance.PROPOSED for item in model.containers
@@ -169,7 +163,7 @@ if st.session_state.approved:
     with one:
         st.download_button(
             "Download System Context SVG",
-            export_svg(model, "context"),
+            context_svg.encode(),
             "c4-context.svg",
             "image/svg+xml",
         )

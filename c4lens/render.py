@@ -39,11 +39,17 @@ def _svg_tag(name: str) -> str:
 
 
 def _pictogram(kind: str, x: float, y: float) -> ET.Element:
-    group = ET.Element(_svg_tag("g"), {"class": f"c4-pictogram {kind}"})
+    group = ET.Element(
+        _svg_tag("g"),
+        {
+            "class": f"c4-pictogram {kind}",
+            "transform": f"translate({x} {y}) scale(1.5) translate({-x} {-y})",
+        },
+    )
     common = {
         "fill": "none",
         "stroke": "#ffffff",
-        "stroke-width": "1.8",
+        "stroke-width": "2.5",
         "stroke-linecap": "round",
         "stroke-linejoin": "round",
     }
