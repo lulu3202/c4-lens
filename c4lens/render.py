@@ -18,7 +18,7 @@ COLORS = {
 }
 
 
-def _lines(text: str, limit: int = 26, maximum: int = 3) -> str:
+def _lines(text: str, limit: int = 30, maximum: int = 3) -> str:
     lines = wrap(text, width=limit)[:maximum]
     if len(text) > sum(len(line) for line in lines):
         lines[-1] = lines[-1].rstrip(".") + "…"
@@ -95,7 +95,7 @@ def _embed_icons(svg: str, model: C4Model) -> str:
         )
         if item is None or text is None:
             continue
-        x, y = float(text.attrib["x"]) - 21, float(text.attrib["y"]) - 15
+        x, y = float(text.attrib["x"]) - 27, float(text.attrib["y"]) - 15
         pictogram = _pictogram(_icon_kind(item), x, y)
         if first_text_index is None:
             node.append(pictogram)
