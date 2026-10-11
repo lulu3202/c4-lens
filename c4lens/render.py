@@ -18,7 +18,7 @@ COLORS = {
 }
 
 
-def _lines(text: str, limit: int = 28, maximum: int = 2) -> str:
+def _lines(text: str, limit: int = 26, maximum: int = 3) -> str:
     lines = wrap(text, width=limit)[:maximum]
     if len(text) > sum(len(line) for line in lines):
         lines[-1] = lines[-1].rstrip(".") + "…"
@@ -110,8 +110,8 @@ def _label(item: Element) -> str:
     technology = f"<BR/><FONT POINT-SIZE=\"10\">{escape(item.technology)}</FONT>" if item.technology else ""
     return (
         "<<TABLE BORDER=\"0\" CELLBORDER=\"0\" CELLSPACING=\"0\" CELLPADDING=\"2\">"
-        "<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"22\" HEIGHT=\"22\"></TD>"
-        f"<TD ALIGN=\"LEFT\"><B>{escape(item.name)}</B>{external}{proposed}<BR/>"
+        "<TR><TD FIXEDSIZE=\"TRUE\" WIDTH=\"46\" HEIGHT=\"22\"></TD>"
+        f"<TD ALIGN=\"LEFT\" WIDTH=\"180\"><B>{_lines(item.name, 24, 2)}</B>{external}{proposed}<BR/>"
         f"<FONT POINT-SIZE=\"10\">{_lines(item.description)}</FONT>{technology}</TD></TR></TABLE>>"
     )
 
@@ -142,9 +142,9 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
     graph.attr(
         rankdir="LR",
         bgcolor="white",
-        pad="0.35",
-        nodesep="0.55",
-        ranksep="0.8",
+        pad="0.18",
+        nodesep="0.35",
+        ranksep="0.5",
         labelloc="t",
         label=f"{title}\\n{model.system_name}",
         fontname="Arial",
@@ -157,9 +157,9 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
         style="rounded,filled",
         fontname="Arial",
         fontcolor="white",
-        margin="0.14",
-        width="2.35",
-        height="0.7",
+        margin="0.1",
+        width="2.5",
+        height="0.65",
     )
     if view == "container":
         with graph.subgraph(name="cluster_target_system") as cluster:
@@ -168,7 +168,7 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
                 color="#167c80",
                 penwidth="2",
                 style="rounded",
-                margin="20",
+                margin="14",
                 fontname="Arial",
                 fontsize="15",
                 fontcolor="#0f4f52",
@@ -183,12 +183,13 @@ def diagram_dot(model: C4Model, view: str, approved: bool = False) -> str:
             graph.edge(
                 rel.source_id,
                 rel.target_id,
-                label="\\n".join(wrap(rel.description, width=24)),
+                label="\\n".join(wrap(rel.description, width=20)),
                 fontname="Arial",
-                fontsize="10",
+                fontsize="9",
                 fontcolor="#334155",
                 color="#64748b",
                 penwidth="1.2",
+                minlen="1",
             )
     return graph.source
 
