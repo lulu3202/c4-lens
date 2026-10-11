@@ -13,7 +13,6 @@ st.title("C4 Lens")
 st.caption(
     "Turn a software problem into reviewable C4 diagrams — with assumptions kept visible."
 )
-st.caption("Renderer build: ICON-PROOF-1")
 
 if "model" not in st.session_state:
     st.session_state.model = None
@@ -146,13 +145,12 @@ with right:
     st.subheader("Visualize")
     context, container = st.tabs(["System Context", "Container"])
     with context:
-        st.caption(f"Pictograms in rendered SVG: {context_svg.count('c4-pictogram')}")
-        st.html(context_svg)
+        st.image(context_svg, width="stretch")
     with container:
         if container_svg is None:
             st.info("No Container architecture has been proposed yet.")
         else:
-            st.html(container_svg)
+            st.image(container_svg, width="stretch")
 
 reviewed_container = any(
     item.provenance != Provenance.PROPOSED for item in model.containers
