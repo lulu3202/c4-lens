@@ -157,7 +157,7 @@ def test_context_excludes_containers_and_svg_and_exports_work():
 def test_final_svg_embeds_self_contained_pictograms():
     model = sample_model("x")
     graphviz_svg = '<svg xmlns="http://www.w3.org/2000/svg">' + "".join(
-        f'<g id="node{index}" class="node"><title>{item_id}</title><polygon points="0,0 1,1"/>'
+        f'<g id="node{index}" class="node"><title>{item_id}</title><path fill="#236a8a" d="M0,0"/>'
         '<text text-anchor="start" x="40" y="-20">Node</text></g>'
         for index, item_id in enumerate(("user", "c4_lens", "llm_provider", "streamlit_app"), 1)
     ) + "</svg>"
@@ -178,6 +178,24 @@ def test_final_svg_embeds_self_contained_pictograms():
         geometry = {child.tag.rsplit("}", 1)[-1] for child in pictogram}
         assert required_geometry <= geometry
         assert all(child.attrib for child in pictogram)
+        children = list(node)
+        background_indices = [
+            index
+            for index, child in enumerate(children)
+            if child.tag in {
+                "{http://www.w3.org/2000/svg}path",
+                "{http://www.w3.org/2000/svg}polygon",
+                "{http://www.w3.org/2000/svg}ellipse",
+                "{http://www.w3.org/2000/svg}rect",
+            }
+        ]
+        pictogram_index = children.index(pictogram)
+        first_text_index = next(
+            index
+            for index, child in enumerate(children)
+            if child.tag == "{http://www.w3.org/2000/svg}text"
+        )
+        assert max(background_indices) < pictogram_index < first_text_index
 
 
 def test_end_to_end_draft_to_approved_export_flow():

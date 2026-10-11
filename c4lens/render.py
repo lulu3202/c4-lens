@@ -77,11 +77,24 @@ def _embed_icons(svg: str, model: C4Model) -> str:
             continue
         title = node.find(_svg_tag("title"))
         item = elements.get(title.text if title is not None else "")
-        text = next((child for child in node.iter(_svg_tag("text")) if child.get("x") and child.get("y")), None)
+        children = list(node)
+        first_text_index = next(
+            (index for index, child in enumerate(children) if child.tag == _svg_tag("text")),
+            None,
+        )
+        text = (
+            children[first_text_index]
+            if first_text_index is not None
+            else next((child for child in node.iter(_svg_tag("text")) if child.get("x") and child.get("y")), None)
+        )
         if item is None or text is None:
             continue
         x, y = float(text.attrib["x"]) - 21, float(text.attrib["y"]) - 15
-        node.insert(1, _pictogram(_icon_kind(item), x, y))
+        pictogram = _pictogram(_icon_kind(item), x, y)
+        if first_text_index is None:
+            node.append(pictogram)
+        else:
+            node.insert(first_text_index, pictogram)
     return ET.tostring(root, encoding="unicode")
 
 
